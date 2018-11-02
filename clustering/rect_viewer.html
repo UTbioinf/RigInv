@@ -1,0 +1,225 @@
+<html>
+<head>
+    <title>Rectangle Viewer</title>
+    <script type="text/javascript" src="https://filbat.servequake.com/static/packages/jquery/jquery.min.js"></script>
+    <script type="text/javascript" src=https://filbat.servequake.com/static/packages/d3/d3.min.js></script>
+    <link rel="stylesheet" href="https://filbat.servequake.com/static/packages/utiljs/css/floating-menu.css">
+    <script src="https://filbat.servequake.com/static/packages/utiljs/js/floating-menu.js"></script>
+
+    <style>
+        .paint-board {
+            background-color: black;
+        }
+        .rect-group {
+            opacity: 1;
+        }
+        .rect-group:hover {
+            stroke: white;
+        }
+    </style>
+</head>
+
+<body>
+    <p>View the rectangles and their clusters</p>
+    <div id="rectangles">
+    </div>
+
+    <script>
+        var panel_size = 800;
+        var fps = 1000 / 24;
+        var stroke_width = 2;
+        var x_range = [-1, 1];
+        var y_range = [-1, 1];
+        var svgContainer = d3.select("#rectangles").append("svg")
+                                                    .attr("width", panel_size)
+                                                    .attr("height", panel_size)
+                                                    .attr("class", "paint-board");
+        var representative_clusters = null;
+        var representative_shown = false;
+
+        d3.selection.prototype.moveToFront = function() {
+            return this.each(function(){
+                this.parentNode.appendChild(this);
+            });
+        }
+
+        function randColor(){
+            var letters = '123456789ABCDEF';
+            var color = '#';
+            for(var i = 0; i < 6; ++i)
+                color += letters[ Math.floor(Math.random() * 15) ];
+            return color;
+        }
+
+        function draw_rect(rect, group, classname, color){
+            var cur_rect = group.append("rect")
+                .attr("x", (rect[0] - x_range[0] ) * panel_size / (x_range[1] - x_range[0]))
+                .attr("y", (y_range[1] - rect[3] ) * panel_size / (y_range[1] - y_range[0]))
+                .attr("width", (rect[1] - rect[0]) * panel_size / (x_range[1] - x_range[0]))
+                .attr("height", (rect[3] - rect[2])* panel_size / (y_range[1] - y_range[0]))
+                .attr("data-coords", JSON.stringify(rect));
+            if(classname)   cur_rect.attr("class", classname);
+            if(color)   cur_rect.attr("stroke", color);
+        }
+
+        function new_group(id, color){
+            
+            return svgContainer.append("g")
+                                .attr("stroke", color || randColor())
+                                .attr("fill", "none")
+                                .attr("stroke-width", stroke_width)
+                                .attr("class", "rect-group")
+                                .attr("id", id)
+                                .on('click', function(d){
+                                        d3.select(this).moveToFront();
+                                    });
+        }
+
+        function convert_panel_point(dot)
+        {
+            return {
+                    "x": (dot[0] - x_range[0] ) * panel_size / (x_range[1] - x_range[0]),
+                    "y": (y_range[1] - dot[1] ) * panel_size / (y_range[1] - y_range[0])
+                }
+        }
+
+        function add_attributes(obj, attributes)
+        {
+            for(var key in attributes)
+            {
+                if(attributes.hasOwnProperty(key))
+                    obj.attr(key, attributes[key]);
+            }
+        }        
+
+        function draw_diagonal()
+        {
+            var xx = Math.min(x_range[0], y_range[0])
+            var yy = Math.max(x_range[1], y_range[1]);
+            var xy1 = convert_panel_point([xx, xx]);
+            var xy2 = convert_panel_point([yy, yy]);
+            var line = svgContainer.append("line")
+                                    .attr("x1", xy1.x)
+                                    .attr("y1", xy1.y)
+                                    .attr("x2", xy2.x)
+                                    .attr("y2", xy2.y);
+            add_attributes(line, {"stroke": "white", "stroke-width": 1, "class": "grid"})
+        }        
+
+        function redraw(data){
+            /*
+                data format: {
+                            'type': 'clustered' | 'rects',
+                            'min_left': <min_left>,
+                            'max_right': <max_right>,
+                            'min_bottom': <min_bottom>,
+                            'max_top': <max_top>,
+                            'clusters': [
+                                [
+                                    [left, right, bottom, top],
+                                    ...
+                                ],
+                                ...
+                            ],
+                            'rects': [
+                                [left, right, bottom, top],
+                                ...
+                            ],
+                            'representative_clusters': {
+                                <id>: [left, right, bottom, top],
+                                ...
+                            }
+                        }
+            */
+            svgContainer.selectAll("*").remove();
+            if('type' in data)
+            {
+                x_range = [data.min_left, data.max_right];
+                y_range = [data.min_bottom, data.max_top];
+                if(data.type == "clustered")
+                {
+                    var clusters = data.clusters;
+                    for(var i = 0; i < clusters.length; ++i)
+                    {
+                        var g = new_group("rects-" + i);
+                        for(var j = 0; j < clusters[i].length; ++j)
+                            draw_rect(clusters[i][j], g);
+                    }
+                }
+                else
+                {
+                    var g = new_group("rects-0", 'Yellow');
+                    var rects = data.rects;
+                    for(var i = 0; i < rects.length; ++i)
+                        draw_rect(rects[i], g);
+                }
+            }
+            show_representative();
+            draw_diagonal();
+        }
+
+        function get_data()
+        {
+            $.getJSON('rects.json', function(data){
+                if('representative_clusters' in data)
+                {
+                    document.getElementById("show-cluster").style.display = "block";
+                    representative_clusters = data.representative_clusters;
+                }
+                else
+                {
+                    representative_clusters = null;
+                    document.getElementById("show-cluster").style.display = "none";
+                }
+                representative_shown = false;
+                redraw( data );
+            })
+        }
+
+        function show_representative()
+        {
+            if(representative_clusters != null && !representative_shown)
+            {
+                for(var key in representative_clusters)
+                {
+                    var cur_group = svgContainer.select("#rects-" + key);
+                    draw_rect(representative_clusters[key], cur_group, "clu", "Black");
+                }
+                representative_shown = true;
+                document.getElementById("show-cluster").innerHTML = "Hide clusters";
+            }
+        }
+
+        function hide_representative()
+        {
+            if(representative_clusters != null && representative_shown)
+            {
+                svgContainer.selectAll(".clu").remove();
+                representative_shown = false;
+                document.getElementById("show-cluster").innerHTML = "Show clusters";
+            }
+        }
+
+        function toggle_representative()
+        {
+            if(representative_clusters != null)
+            {
+                if(representative_shown)
+                    hide_representative();
+                else
+                    show_representative();
+            }
+        }
+
+        $(function(){
+            $.ajaxSetup({cache: false});
+            floating_btn("reload", "right", 100, 60, "top", 20, "reload");
+            floating_btn("show-cluster", "right", 100, 60, "top", 80, "show cluster");
+            document.getElementById("reload").addEventListener('click', get_data);
+            document.getElementById("show-cluster").addEventListener('click', toggle_representative);
+
+            get_data();
+        });
+    </script>
+</body>
+</html>

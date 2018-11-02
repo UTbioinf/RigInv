@@ -1,0 +1,31 @@
+<working_directory>
+    |- intermediate_results/
+        |- spec.txt (output of bamExtractor, <id> path == line[3], <id> == line[0])
+        |- inc.mk
+        |- <id> paths ... /
+            |- <id>.txt  (extracted brief alignment information)
+            |- <id>.sorted.txt
+            |- <id>.concordant.txt  (concordant predictions, aka validated segments)
+            |- <id>.type1.txt       (candidate type 1 predictions)
+            |- <id>.type2.txt       (candidate type 2 predictions)
+            |- <id>_type2_parts/    (directory for partitioning and clustering)
+            |   |- spec.txt         (output of partition_disconnected_rects; <part_id> path == line[1], <part_id> == line[0])
+            |   |- <part_id> paths ... /   (directory for connected components)
+            |       |- <part_id>.txt       (the connected components)
+            |       |- <part_id>_sol/      (Directory of solution to the connected components, with several clusters)
+            |           |- predictions.sol (Solution to the connected components, with several clusters)
+            |           |- spec.txt (may exist) (output of cluster_by_maximal_coverage; <sub_part_id> path == line[1], <sub_part_id> == line[0])
+            |           |- <sub_part_id> paths ... /    (directory of the clustering)
+            |               |- <sub_part_id>.txt
+            |- <id>_type2.sol       (filtered prediction of type2 inversions)
+
+
+
+
+Notes and Examples:
+
+<id>: the reference ID, starting from 0
+<id> paths: E.g., `A/0.txt`
+<id>_type2_parts: E.g., `A/0_type2_parts`
+
+

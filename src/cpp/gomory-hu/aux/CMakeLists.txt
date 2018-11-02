@@ -1,0 +1,10 @@
+project("gomory_hu_aux")
+
+add_executable(generate_gomory_hu_input generate_gomory_hu_input.cpp)
+target_link_libraries(generate_gomory_hu_input ${LOONLIB_LIBRARIES})
+
+add_executable(prob_rect_prediction_gomory_hu prob_rect_prediction_gomory_hu.cpp)
+target_link_libraries(prob_rect_prediction_gomory_hu ${LOONLIB_LIBRARIES})
+
+install(TARGETS generate_gomory_hu_input prob_rect_prediction_gomory_hu DESTINATION libexec/bin)
+

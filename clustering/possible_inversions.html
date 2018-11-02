@@ -1,0 +1,254 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+    <title>Possible Inversions</title>
+    <script type="text/javascript" src="https://filbat.servequake.com/static/packages/jquery/jquery.min.js"></script>
+    <script type="text/javascript" src=https://filbat.servequake.com/static/packages/d3/d3.min.js></script>
+    <link rel="stylesheet" href="https://filbat.servequake.com/static/packages/utiljs/css/floating-menu.css">
+    <script src="https://filbat.servequake.com/static/packages/utiljs/js/floating-menu.js"></script>
+
+    <style>
+        .paint-board {
+            background-color: black;
+        }
+        .rect-group {
+            opacity: 1;
+        }
+        .rect-group:hover {
+            stroke: white;
+        }
+        .grid {
+            opacity: 0.8;
+        }
+    </style>
+</head>
+
+<body>
+    <p>Possible Inversions</p>
+    <div id="panel"></div>
+
+    <script>
+        var panel_size = 800;
+        var fps = 1000 / 24;
+        var stroke_width = 2;
+        var x_range = [-1, 1];
+        var y_range = [-1, 1];
+
+        var svgContainer = d3.select("#panel").append("svg")
+                                                .attr("width", panel_size)
+                                                .attr("height", panel_size)
+                                                .attr("class", "paint-board");
+
+        d3.selection.prototype.moveToFront = function() {
+            return this.each(function(){
+                this.parentNode.appendChild(this);
+            });
+        }
+        
+        function randColor(){
+            var letters = '123456789ABCDEF';
+            var color = '#';
+            for(var i = 0; i < 6; ++i)
+                color += letters[ Math.floor(Math.random() * 15) ];
+            return color;            
+        }
+
+        function add_attributes(obj, attributes)
+        {
+            for(var key in attributes)
+            {
+                if(attributes.hasOwnProperty(key))
+                    obj.attr(key, attributes[key]);
+            }
+        }
+
+        function convert_panel_rect(rect)
+        {
+            return {
+                    "x": (rect[0] - x_range[0] ) * panel_size / (x_range[1] - x_range[0]),
+                    "y": (y_range[1] - rect[3] ) * panel_size / (y_range[1] - y_range[0]),
+                    "w": (rect[1] - rect[0]) * panel_size / (x_range[1] - x_range[0]),
+                    "h": (rect[3] - rect[2])* panel_size / (y_range[1] - y_range[0])
+                }
+        }
+
+        function convert_panel_point(dot)
+        {
+            return {
+                    "x": (dot[0] - x_range[0] ) * panel_size / (x_range[1] - x_range[0]),
+                    "y": (y_range[1] - dot[1] ) * panel_size / (y_range[1] - y_range[0])
+                }
+        }
+
+        function draw_rect(rect, sub_panel, attributes = {})
+        {
+            var cur_rect = sub_panel.append("rect")
+                                    .attr("x", (rect[0] - x_range[0] ) * panel_size / (x_range[1] - x_range[0]))
+                                    .attr("y", (y_range[1] - rect[3] ) * panel_size / (y_range[1] - y_range[0]))
+                                    .attr("width", (rect[1] - rect[0]) * panel_size / (x_range[1] - x_range[0]))
+                                    .attr("height", (rect[3] - rect[2])* panel_size / (y_range[1] - y_range[0]))
+                                    .attr("data-coords", JSON.stringify(rect));
+            add_attributes(cur_rect, attributes);
+        }
+
+        function draw_dot(dot, sub_panel, dot_size, attributes = {})
+        {
+            var cur_rect = sub_panel.append("rect")
+                                    .attr("x", (dot[0] - x_range[0] ) * panel_size / (x_range[1] - x_range[0]) - dot_size / 2)
+                                    .attr("y", (y_range[1] - dot[1] ) * panel_size / (y_range[1] - y_range[0]) - dot_size / 2)
+                                    .attr("width", dot_size)
+                                    .attr("height", dot_size)
+                                    .attr("data-coords", JSON.stringify(dot));
+            add_attributes(cur_rect, attributes);
+        }
+
+    </script>
+
+    <script>
+        var rect_size = 200;
+        var padding = 10000;
+        function perturbe_points(point, ratio)
+        {
+            point[0] += Math.random() * ratio;
+            point[1] += Math.random() * ratio;
+            if(point[0] > point[1])
+            {
+                [point[0], point[1]] = [point[1], point[0]];
+            }
+            return point;
+        }
+
+        function draw_grid(dot, sub_panel, attributes = {})
+        {
+            var panel_xy = convert_panel_point(dot);
+            var hx_vy = convert_panel_point([dot[1], dot[0]])
+            var h_line = sub_panel.append("line")
+                                  .attr("x1", panel_xy["x"])
+                                  .attr("x2", hx_vy["x"])
+                                  .attr("y1", panel_xy["y"])
+                                  .attr("y2", panel_xy["y"]);
+            var v_line = sub_panel.append("line")
+                                  .attr("x1", panel_xy["x"])
+                                  .attr("x2", panel_xy["x"])
+                                  .attr("y1", panel_xy["y"])
+                                  .attr("y2", hx_vy["y"]);
+            add_attributes(h_line, attributes);
+            add_attributes(v_line, attributes);
+        }
+
+        function draw_diagonal()
+        {
+            var xx = Math.min(x_range[0], y_range[0])
+            var yy = Math.max(x_range[1], y_range[1]);
+            var xy1 = convert_panel_point([xx, xx]);
+            var xy2 = convert_panel_point([yy, yy]);
+            var line = svgContainer.append("line")
+                                    .attr("x1", xy1.x)
+                                    .attr("y1", xy1.y)
+                                    .attr("x2", xy2.x)
+                                    .attr("y2", xy2.y);
+            add_attributes(line, {"stroke": "white", "stroke-width": 1, "class": "grid"})
+        }
+
+        function redraw(points){
+            svgContainer.selectAll("*").remove();
+            if(points.length < 0)   return;
+
+            // compute the x,y range
+            var min_x = points[0][0], max_x = points[0][0], min_y = points[0][1], max_y = points[0][1];
+            for(var i = 1; i < points.length; ++i)
+            {
+                min_x = Math.min(min_x, points[i][0]);
+                max_x = Math.max(max_x, points[i][0]);
+                min_y = Math.min(min_y, points[i][1]);
+                max_y = Math.max(max_y, points[i][1]);
+            }
+            min_x -= rect_size / 2 + padding;
+            max_x += rect_size / 2 + padding;
+            min_y -= rect_size / 2 + padding;
+            max_y += rect_size / 2 + padding;
+            x_range = [min_x, max_x];
+            y_range = [min_y, max_y];
+
+            draw_diagonal();
+
+            // perturbe points
+            for(var i = 0; i < points.length; ++i)
+                points[i] = perturbe_points(points[i], 0);
+
+            // draw grid 
+            for(var i = 0; i < points.length; ++i)
+            {
+                var cur_point = points[i];
+                if(cur_point.length > 2)
+                {
+                    draw_grid(cur_point, svgContainer, {
+                                "stroke": cur_point[2],
+                                "stroke-width": 1,
+                                "class": "grid"
+                            });
+                }
+            }
+            // draw the points
+            for(var i = 0; i < points.length; ++i)
+            {
+                var cur_point = points[i];
+                draw_dot(cur_point,  svgContainer, 2,
+                            {
+                                "stroke": "red",
+                                "stroke-width": stroke_width
+                            });
+            }
+        }
+    </script>
+
+    <script>
+        var points = [
+                    [1, 10000, "yellow"],
+                        [500, 9000, "green"],
+                            [2000, 8000, "cyan"],
+                                [2500, 3000, "brown"],
+                                [4000, 5000, "brown"],
+                                [7000, 7500, "brown"],
+                    [10000, 15000, "orange"],
+                        [11000, 11500, "green"],
+                        [13000, 14000, "green"],
+                    [15000, 26000, "yellow"],
+                        [16000, 20000, "green"],
+                            [16500, 17500, "cyan"],
+                            [17800, 18000, "cyan"],
+                            [18500, 19500, "cyan"],
+                        [21000, 24000, "green"],
+                            [22000, 22555, "cyan"],
+                            [22800, 23100, "cyan"],
+                    [28000, 42000, "yellow"],
+                        [30000, 35000, "green"],
+                        [36000, 40000, "green"],
+                        [41000, 41500, "green"],
+                    [44000, 51000, "yellow"],
+                    [60000, 73000, "yellow"],
+                        [60500, 62000, "green"],
+                        [62500, 64000, "green"],
+                        [65200, 67000, "green"],
+                        [68400, 69000, "green"],
+                        [69500, 70900, "green"],
+                        [72000, 72500, "green"],
+                    [75000, 88000, "yellow"],
+                        [76000, 80000, "green"],
+                            [77000, 78000, "cyan"],
+                            [78500, 79500, "cyan"],
+                        [80500, 81500, "green"],
+                        [82000, 87000, "green"],
+                            [84000, 86500, "cyan"],
+                    [90000, 100000, "yellow"],
+                    // [105000, 115000, "yellow"],
+                    // [120000, 130000, "yellow"],
+                    // [135000, 145000, "yellow"]
+                ];
+        $(function(){
+            $.ajaxSetup({cache: false});
+            redraw(points);
+        });
+    </script>
+</body>
+</html>

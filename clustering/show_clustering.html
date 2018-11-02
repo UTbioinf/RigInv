@@ -1,0 +1,178 @@
+<html>
+<head>
+    <title>Show results of clustering algorithms</title>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+    <script src="https://d3js.org/d3.v4.min.js"></script>
+
+    <style>
+        .paint-board {
+            background-color: white;
+        }
+        .buttons button{
+            position: fixed;
+            right: -85px;
+            transition: 0.3s;
+            padding: 15px;
+            width: 160px;
+            text-decoration: none;
+            text-align: left;
+            font-size: 20px;
+            color: white;
+            border-radius: 5px 5px 5px 5px;
+            background-color: #AAAAAA;
+            opacity: 0.7;
+        }
+        .buttons button:hover{
+            right: 0;
+        }
+
+        #toggle-marker{
+            top: 80px;
+        }
+        #reload{
+            top: 150px;
+        }
+        #cluster{
+            top: 220px;
+        }
+        #toggle-color{
+            top: 290px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="rectangles">
+    </div>
+    <div class="buttons">
+        <button id="toggle-marker">Hide Marker</button>
+        <button id="reload">Reload</button>
+        <button id="cluster">Cluster</button>
+        <button id="toggle-color">No Color</button>
+    </div>
+
+    <script>
+        var label_id = -1;
+        var panel_size = 900;
+        var show_markers = true;
+        var show_color = true;
+        var markers;
+        var rects;
+        var labels_ids;
+        var stroke_width = 1;
+        var svgContainer = d3.select("#rectangles").append("svg")
+                                                   .attr("width", panel_size)
+                                                   .attr("height", panel_size)
+                                                   .attr("class", "paint-board");
+
+        function draw_rect(rect, color, attr_name)
+        {
+            if(! show_color)
+                color = "Black";
+            svgContainer.append("rect")
+                        .attr("x", rect.min_x * panel_size)
+                        .attr("y", panel_size - rect.max_y * panel_size)
+                        .attr("width", (rect.max_x - rect.min_x) * panel_size)
+                        .attr("height", (rect.max_y - rect.min_y) * panel_size)
+                        .attr("stroke", color)
+                        .attr("fill", "none")
+                        .attr("stroke-width", stroke_width)
+                        .attr("data-type", attr_name);
+        }
+
+        function draw_rects()
+        {
+            stroke_width = 1;
+            for(var i = 0; i < rects.length; ++i)
+                if(label_id < 0 || label_id >= markers.length || labels_ids[ i ] == label_id)
+                    draw_rect(rects[i].rect, rects[i].color, "rect");
+                else
+                    draw_rect(rects[i].rect, "LightGray", "rect");
+        }
+
+        function draw_markers()
+        {
+            stroke_width = 3;
+            if(label_id >= 0 && label_id < markers.length)
+                draw_rect(markers[label_id], "Black", "marker");
+            else
+            {
+                for(var i = 0; i < markers.length; ++i)
+                    draw_rect(markers[i], "Black", "marker");
+            }
+        }
+
+        function hide_markers()
+        {
+            svgContainer.selectAll("rect[data-type='marker']").remove();
+        }
+
+        function redraw()
+        {
+            svgContainer.selectAll("*").remove();
+            draw_rects();
+            if(show_markers)
+                draw_markers();
+        }
+
+        function get_data()
+        {
+            $.getJSON("data.json", function(data){
+                markers = data.marker;
+                rects = data.rects;
+                redraw();
+                document.getElementById("reload").style.color = "red";
+                document.getElementById("cluster").style.color="white";
+            });
+            label_id = -1;
+        }
+
+        function get_cluster()
+        {
+            $.getJSON("cluster.json", function(data){
+                rects = data.data;
+                markers = data.centroid;
+                labels_ids = data.labels;
+                redraw();
+                document.getElementById("reload").style.color = "white";
+                document.getElementById("cluster").style.color="red";
+            })
+        }
+        $(function(){
+            $.ajaxSetup({ cache: false });
+            get_data();
+
+            document.getElementById("toggle-marker").addEventListener("click", function(){
+                if(show_markers)
+                {
+                    show_markers = false;
+                    this.innerHTML = "Show Marker";
+                    hide_markers();
+                }
+                else
+                {
+                    show_markers = true;
+                    this.innerHTML = "Hide Marker";
+                    draw_markers();
+                }
+            });
+            document.getElementById("reload").addEventListener("click", get_data);
+            document.getElementById("cluster").addEventListener("click", get_cluster);
+            document.getElementById("toggle-color").addEventListener("click", function(){
+                if(show_color)
+                {
+                    show_color = false;
+                    this.innerHTML = "Colorful";
+                }
+                else
+                {
+                    show_color = true;
+                    this.innerHTML = "No Color";
+                }
+                redraw();
+            });
+        });
+
+    </script>
+</body>
+</html>
